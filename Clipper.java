@@ -2,6 +2,9 @@ package onetothefour;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.net.URL;
 
 import javax.sound.sampled.AudioFileFormat;
 import javax.sound.sampled.AudioFormat;
@@ -14,179 +17,63 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.UnsupportedAudioFileException;
 
 public class Clipper {
-	private int frameLength;
-	private long usLength;
-
-	/*
-	 * clipPoints[0] = beginning of the clip clipPoints[1] = 1/4 of the length of
-	 * the clip clipPoints[2] = 1/2 of the length of the clip clipPoints[3] = 3/4 of
-	 * the length of the clip clipPoints[4] = full length of the clip
-	 */
-	private int[] clipPoints = new int[5];
-	private Clip fullClip;
-	private Clip[] dividedClip = new Clip[4];
-
-	private AudioInputStream[] shortenedStream = new AudioInputStream[4];
+	private String sourceURLStr;
+	private String destURLStr; 
+	private String fileName;
 	
-	private String fileLocation;
-
-	public Clipper(String fileLocation, long usLength) {
-		this.fileLocation = fileLocation;
-		this.usLength = usLength;
-		
-		initializeAIS(fileLocation, usLength);
+	private int lengthMS; 
+	
+	public static Mixer mixer;
+	public static Clip clip;
+	
+	public Clipper(String wavFileName, String sourceURL, String destURL) {
+		lengthMS = getLengthMS(sourceURL);
+		System.out.println(lengthMS);
 	}
 	
-	public void initializeAIS(String sourceFileName, long usLength) {
-		AudioInputStream inputStream = null;
+	public void initSplitFiles() {
+		int fileLenEighth = lengthMS / 8;
 		
-		long qtrLenInSecs = (usLength / 4) * 1000000;
+		int[] startPts = new int[8];
+		
+		for (int x = 0; x < 8; x++) {
+			startPts[x] = fileLenEighth * x;
+		}
+		
+		// Splits file into 8 parts.
+		for (int x = 0; x < 8; x++) {
+			copyAudioMs(sourceURLStr, destURLStr+fileName+"-e"+(x+1)+".wav", startPts[x], fileLenEighth);
+		}
+		
+		// Splits file into 4 parts.
+		for (int x = 0; x < 4; x = x + 2) {
+			copyAudioMs(sourceURLStr, destURLStr+fileName+"-q"+(x+1)+".wav", startPts[x], fileLenEighth*2);
+		}
+	}
+	
+	public int getLengthMS(String sourceURLStr) {
+		Mixer.Info[] mixInfos = AudioSystem.getMixerInfo();
+		
+		mixer = AudioSystem.getMixer(mixInfos[0]);
+		
+		DataLine.Info dataInfo = new DataLine.Info(Clip.class, null);
+		try { clip = (Clip)mixer.getLine(dataInfo); }
+		catch (LineUnavailableException lue) { lue.printStackTrace(); }
 		
 		try {
-			// Reads an input file and it's file type.
-			File file = new File(sourceFileName);
-			AudioFileFormat fileFormat = AudioSystem.getAudioFileFormat(file);
-			AudioFormat format = fileFormat.getFormat();
-
-			// Initializes the input stream.
-			inputStream = AudioSystem.getAudioInputStream(file);
-
-			// Finds the skip point to begin reading bytes.
-			int bytesPerSecond = format.getFrameSize() * (int) format.getFrameRate();
-			// Finds the total number of copied frames.
-			long framesOfAudioToCopy = qtrLenInSecs * (int) format.getFrameRate();
-			
-			for (int i = 0; i < 4; i++) {
-				// Sets the inputStream to the next reading point.
-				inputStream.skip(qtrLenInSecs * bytesPerSecond * i);
-				// Initializes the shortened stream of the clip.
-				shortenedStream[0] = new AudioInputStream(inputStream, format, framesOfAudioToCopy);
-			}
-		} catch (Exception e) {
-			System.out.println(e);
+			URL soundURL = new URL(sourceURLStr);
+			AudioInputStream ais = AudioSystem.getAudioInputStream(soundURL);
+			clip.open(ais);
 		}
+		catch (LineUnavailableException lue) { lue.printStackTrace(); }
+		catch (IOException io) { io.printStackTrace(); } 
+		catch (UnsupportedAudioFileException e) { e.printStackTrace(); }
+		
+		int lengthMS = (int)(clip.getMicrosecondLength()*0.001);
+
+		return lengthMS;
 	}
 	
-	public void playClip1() {
-		Mixer.Info[] mixInfos = AudioSystem.getMixerInfo();
-		Mixer mixer = AudioSystem.getMixer(mixInfos[0]);
-		
-		DataLine.Info dataInfo = new DataLine.Info(Clip.class, null);
-		try { dividedClip[0] = (Clip)mixer.getLine(dataInfo); }
-		catch (LineUnavailableException lue) { lue.printStackTrace(); }
-		
-		try { dividedClip[0].open(shortenedStream[0]); }
-		catch (LineUnavailableException lue) { lue.printStackTrace(); } 
-		catch (IOException e) { e.printStackTrace(); }
-		
-		dividedClip[0].start();
-		
-		do {
-			try { Thread.sleep(dividedClip[0].getMicrosecondLength()); }
-			catch (InterruptedException ie) { ie.printStackTrace(); }
-		}
-		while (dividedClip[0].isActive());
-
-	}
-
-	public void playClip2() {
-		Mixer.Info[] mixInfos = AudioSystem.getMixerInfo();
-		Mixer mixer = AudioSystem.getMixer(mixInfos[0]);
-		
-		DataLine.Info dataInfo = new DataLine.Info(Clip.class, null);
-		try { dividedClip[1] = (Clip)mixer.getLine(dataInfo); }
-		catch (LineUnavailableException lue) { lue.printStackTrace(); }
-		
-		try { dividedClip[1].open(shortenedStream[1]); }
-		catch (LineUnavailableException lue) { lue.printStackTrace(); } 
-		catch (IOException e) { e.printStackTrace(); }
-		
-		dividedClip[1].start();
-		
-		do {
-			try { Thread.sleep(dividedClip[1].getMicrosecondLength()); }
-			catch (InterruptedException ie) { ie.printStackTrace(); }
-		}
-		while (dividedClip[1].isActive());
-	}
-	
-	public void playClip3() {
-		Mixer.Info[] mixInfos = AudioSystem.getMixerInfo();
-		Mixer mixer = AudioSystem.getMixer(mixInfos[0]);
-		
-		DataLine.Info dataInfo = new DataLine.Info(Clip.class, null);
-		try { dividedClip[2] = (Clip)mixer.getLine(dataInfo); }
-		catch (LineUnavailableException lue) { lue.printStackTrace(); }
-		
-		try { dividedClip[2].open(shortenedStream[2]); }
-		catch (LineUnavailableException lue) { lue.printStackTrace(); } 
-		catch (IOException e) { e.printStackTrace(); }
-		
-		dividedClip[2].start();
-		
-		do {
-			try { Thread.sleep(dividedClip[2].getMicrosecondLength()); }
-			catch (InterruptedException ie) { ie.printStackTrace(); }
-		}
-		while (dividedClip[2].isActive());
-	}
-
-	public void playClip4() {
-		Mixer.Info[] mixInfos = AudioSystem.getMixerInfo();
-		Mixer mixer = AudioSystem.getMixer(mixInfos[0]);
-		
-		DataLine.Info dataInfo = new DataLine.Info(Clip.class, null);
-		try { dividedClip[3] = (Clip)mixer.getLine(dataInfo); }
-		catch (LineUnavailableException lue) { lue.printStackTrace(); }
-		
-		try { dividedClip[3].open(shortenedStream[3]); }
-		catch (LineUnavailableException lue) { lue.printStackTrace(); } 
-		catch (IOException e) { e.printStackTrace(); }
-		
-		dividedClip[3].start();
-		
-		do {
-			try { Thread.sleep(dividedClip[3].getMicrosecondLength()); }
-			catch (InterruptedException ie) { ie.printStackTrace(); }
-		}
-		while (dividedClip[3].isActive());
-	}
-	
-	public int getFrameLength() {
-		return frameLength;
-	}
-
-	public int[] getClipPoints() {
-		return clipPoints;
-	}
-
-	public Clip getFullClip() {
-		return fullClip;
-	}
-
-	public Clip[] getDividedClip() {
-		return dividedClip;
-	}
-
-	public void setFullClip(Clip newClip) {
-		fullClip = newClip;
-		frameLength = fullClip.getFrameLength();
-
-		setClipPoints(frameLength);
-	}
-
-	/*
-	 * setClipPoints() is private because it should not be altered outside of this
-	 * class.
-	 */
-	private void setClipPoints(int frameLength) {
-		clipPoints[0] = 0;
-		for (int i = 1; i < 5; i++) {
-			clipPoints[i] = clipPoints[i - 1] + (frameLength / 4);
-		}
-	}
-
-
 	/*
 	 * Method creates an audio file based on a clip of another.
 	 * 
