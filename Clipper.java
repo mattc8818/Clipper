@@ -69,14 +69,9 @@ public class Clipper {
 		String stitchesFolderFilePath = destURLStr + clipperName + "-Stitches/";
 
 		boolean success = (new File(clipperFolderFilePath)).mkdirs();
-		if (!success) {
-			System.out.println("Error creating folder for split points");
-		}
 		success = (new File(stitchesFolderFilePath)).mkdirs();
-		if (!success) {
-			System.out.println("Error creating folder for stitched clips");
-		}
-
+		if (!success) { System.out.println("Possible problems with your generated folders"); }
+		
 		int fileLenEighth = lengthMS / 8;
 
 		int[] startPts = new int[8];
