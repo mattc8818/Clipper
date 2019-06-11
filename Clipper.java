@@ -262,35 +262,22 @@ public class Clipper {
                         new SequenceInputStream(clip1, clip2),     
                         clip1.getFormat(), 
                         clip1.getFrameLength() + clip2.getFrameLength());
+			
+			for (int n = 2; n < sequence.length; n++) {
+				String stitchAppend = getClipStrPath(sequence[n]);
+				AudioInputStream newClip = AudioSystem.getAudioInputStream(new File(stitchAppend));
 
+				appendedFiles = new AudioInputStream(
+	                        new SequenceInputStream(appendedFiles, newClip),     
+	                        appendedFiles.getFormat(), 
+	                        appendedFiles.getFrameLength() + newClip.getFrameLength());
+
+			}
+			
 			AudioSystem.write(appendedFiles, 
                     AudioFileFormat.Type.WAVE, 
                     new File(newStitchURLStr));
 		} catch (Exception e) { e.printStackTrace(); }
-		
-		
-		// Subsequent appends to the first and second clips, if necessary.
-		for (int n = 2; n < sequence.length; n++) {
-			try {
-				String stitchAppend = getClipStrPath(sequence[n]);
-				
-				AudioInputStream clip1 = AudioSystem.getAudioInputStream(new File(newStitchURLStr));
-				AudioInputStream clip2 = AudioSystem.getAudioInputStream(new File(stitchAppend));
-				
-				AudioInputStream appendedFiles = 
-	                    new AudioInputStream(
-	                        new SequenceInputStream(clip1, clip2),     
-	                        clip1.getFormat(), 
-	                        clip1.getFrameLength() + clip2.getFrameLength());
-				
-				aisOutput = appendedFiles;
-
-				AudioSystem.write(appendedFiles, 
-	                    AudioFileFormat.Type.WAVE, 
-	                    new File(newStitchURLStr));
-			}
-			catch (Exception e) { e.printStackTrace(); } 
-		}
 	}
 	
 	public String getClipStrPath (String clipID) {
