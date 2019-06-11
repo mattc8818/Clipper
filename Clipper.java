@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 
 import javax.sound.sampled.AudioFileFormat;
@@ -17,21 +18,60 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.UnsupportedAudioFileException;
 
 public class Clipper {
+	private URL sourceURL;
+	private URL destURL;
+	
 	private String sourceURLStr;
 	private String destURLStr; 
-	private String fileName;
+	private String clipperName;
+	
+	/* Size of 12 String array that stores String filepaths for clipped WAVs.
+	 * 
+	 * clippingsURLStr[0 - 7] correspond to e1 - e8 WAV files.
+	 * clippingsURLStr[8-11] correspond to q1 - q4 WAV files.
+	 */
+	private String[] clippingsURLStr;
 	
 	private int lengthMS; 
 	
 	public static Mixer mixer;
 	public static Clip clip;
 	
-	public Clipper(String wavFileName, String sourceURL, String destURL) {
+	public Clipper(String clipperName, String sourceURLStr, String destURLStr) {
+		this.clipperName = clipperName;
+		this.sourceURLStr = sourceURLStr;
+		this.destURLStr = destURLStr;
+		
+		try {
+			sourceURL = new URL("file:///"+sourceURLStr);
+			destURL = new URL("file:///"+destURLStr);
+		} catch (MalformedURLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 		lengthMS = getLengthMS(sourceURL);
-		System.out.println(lengthMS);
+
+		// Initializes split clips of the file, and recieves their respective filepath.
+		clippingsURLStr = initSplitFiles();
 	}
 	
-	public void initSplitFiles() {
+	/*
+	 * From the input file, a folder with WAV clippings is generated.
+	 * 
+	 *  Outputs a String array with the URL Strings of the resulting files.
+	 */
+	public String[] initSplitFiles() {
+		String[] clippingsFilesURLStr = new String[12];
+		
+		String clipperFolderFilePath = destURLStr+clipperName+"Clips/";
+		
+		boolean success = (new File(clipperFolderFilePath)).mkdirs();
+		if (!success) {
+			System.out.println("Error creating folder for split points");
+		}
+
+		
 		int fileLenEighth = lengthMS / 8;
 		
 		int[] startPts = new int[8];
@@ -40,18 +80,28 @@ public class Clipper {
 			startPts[x] = fileLenEighth * x;
 		}
 		
+		String newPathTemp = "";
 		// Splits file into 8 parts.
 		for (int x = 0; x < 8; x++) {
-			copyAudioMs(sourceURLStr, destURLStr+fileName+"-e"+(x+1)+".wav", startPts[x], fileLenEighth);
+			newPathTemp = clipperFolderFilePath+clipperName+"-e"+(x+1)+".wav";
+			
+			clippingsFilesURLStr[x] = newPathTemp;
+			copyAudioMs(sourceURLStr, newPathTemp, startPts[x], fileLenEighth);
 		}
 		
+		
 		// Splits file into 4 parts.
-		for (int x = 0; x < 4; x = x + 2) {
-			copyAudioMs(sourceURLStr, destURLStr+fileName+"-q"+(x+1)+".wav", startPts[x], fileLenEighth*2);
+		for (int x = 0; x < 8; x= x + 2) {
+			newPathTemp = clipperFolderFilePath+clipperName+"-q"+((x/2) + 1)+".wav";
+			
+			clippingsFilesURLStr[8 + (x/2)] = newPathTemp;
+			copyAudioMs(sourceURLStr, newPathTemp, startPts[x], fileLenEighth*2);
 		}
+		
+		return clippingsFilesURLStr;
 	}
 	
-	public int getLengthMS(String sourceURLStr) {
+	public int getLengthMS(URL sourceURL) {
 		Mixer.Info[] mixInfos = AudioSystem.getMixerInfo();
 		
 		mixer = AudioSystem.getMixer(mixInfos[0]);
@@ -61,13 +111,12 @@ public class Clipper {
 		catch (LineUnavailableException lue) { lue.printStackTrace(); }
 		
 		try {
-			URL soundURL = new URL(sourceURLStr);
-			AudioInputStream ais = AudioSystem.getAudioInputStream(soundURL);
+			AudioInputStream ais = AudioSystem.getAudioInputStream(sourceURL);
 			clip.open(ais);
 		}
-		catch (LineUnavailableException lue) { lue.printStackTrace(); }
 		catch (IOException io) { io.printStackTrace(); } 
-		catch (UnsupportedAudioFileException e) { e.printStackTrace(); }
+		catch (UnsupportedAudioFileException e) { e.printStackTrace(); } 
+		catch (LineUnavailableException e) { e.printStackTrace(); }
 		
 		int lengthMS = (int)(clip.getMicrosecondLength()*0.001);
 
