@@ -230,6 +230,8 @@ public class Clipper {
 	}
 
 	public void stitch(String[] sequence) {
+		AudioInputStream aisOutput = null;
+		
 		if (sequence.length < 2) {
 			System.out.println("Error: at least two sequences are needed to stitch.");
 			return;
@@ -280,6 +282,8 @@ public class Clipper {
 	                        new SequenceInputStream(clip1, clip2),     
 	                        clip1.getFormat(), 
 	                        clip1.getFrameLength() + clip2.getFrameLength());
+				
+				aisOutput = appendedFiles;
 
 				AudioSystem.write(appendedFiles, 
 	                    AudioFileFormat.Type.WAVE, 
@@ -329,7 +333,7 @@ public class Clipper {
 			clipPath = clippingsURLStr[11];
 			break;
 		default:
-			System.out.println("Error: invalid input clip ID" + clipID);
+			System.out.println("Error: invalid input clip ID " + clipID);
 			break;
 		}
 		return clipPath;
