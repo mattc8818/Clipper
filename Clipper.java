@@ -139,6 +139,54 @@ public class Clipper {
 
 		return quartersClips;
 	}
+	
+	
+	public AudioInputStream reinitializeAIS(String aisSegment) {
+		AudioInputStream duplicate = null;
+		int eighthLength = (lengthMS/8);
+		switch (aisSegment) {
+		case "e1":
+			eighthsOfClip[0] = shortenedStream(sourceURLStr, 0, eighthLength);
+			break;
+		case "e2":
+			eighthsOfClip[1] = shortenedStream(sourceURLStr, eighthLength, eighthLength);
+			break;
+		case "e3":
+			eighthsOfClip[2] = shortenedStream(sourceURLStr, (eighthLength*2), eighthLength);
+			break;
+		case "e4":
+			eighthsOfClip[3] = shortenedStream(sourceURLStr, (eighthLength*3), eighthLength);
+			break;
+		case "e5":
+			eighthsOfClip[4] = shortenedStream(sourceURLStr, (eighthLength*4), eighthLength);
+			break;
+		case "e6":
+			eighthsOfClip[5] = shortenedStream(sourceURLStr, (eighthLength*5), eighthLength);
+			break;
+		case "e7":
+			eighthsOfClip[6] = shortenedStream(sourceURLStr, (eighthLength*6), eighthLength);
+			break;
+		case "e8":
+			eighthsOfClip[7] = shortenedStream(sourceURLStr, (eighthLength*7), eighthLength);
+			break;
+		case "q1":
+			quartersOfClip[0] = shortenedStream(sourceURLStr, (0), (eighthLength*2));
+			break;
+		case "q2":
+			quartersOfClip[1] = shortenedStream(sourceURLStr, (eighthLength*2), (eighthLength*2));
+			break;
+		case "q3":
+			quartersOfClip[2] = shortenedStream(sourceURLStr, (eighthLength*4), (eighthLength*2));
+			break;
+		case "q4":
+			quartersOfClip[3] = shortenedStream(sourceURLStr, (eighthLength*6), (eighthLength*2));
+			break;
+		default:
+			System.out.println("Error: invalid input clip ID " + aisSegment);
+			break;
+		}
+		return duplicate;
+	}
 
 	/*
 	 * Outputs the ms of the WAV file.
@@ -279,21 +327,53 @@ public class Clipper {
 		}
 		newStitchURLStr += ".wav";
 
-		// Initial stitch of the first and second clip.
+		// Initial stitch of the first and second clip. 
 		try {
 			AudioInputStream clip1 = getClip(sequence[0]);
 			AudioInputStream clip2 = getClip(sequence[1]);
-
-			appendedFiles = new AudioInputStream(new SequenceInputStream(clip1, clip2),
-					clip1.getFormat(), clip1.getFrameLength() + clip2.getFrameLength());
 			
+			// If the the sequences are the same, then a duplicate has to be manually created.
+			if (sequence[0].equals(sequence[1])) {
+				
+				// 'q' or 'e' from the sequence string.
+				char eORq = sequence[0].charAt(0);
+				
+				int startPos = Character.getNumericValue(sequence[0].charAt(1)) - 1;
+				
+				int segmentLength = (lengthMS/8);
+				// If eORq is q, that means that the segment ought to be twice as long.
+				if (eORq=='q') segmentLength *= 2;
+				
+				int startLength = startPos*segmentLength;
+				
+				AudioInputStream duplicate = shortenedStream(sourceURLStr, startLength, segmentLength);
+				
+				// Initializes the appendedFiles AIS, which will be appended to continuously.
+				appendedFiles = new AudioInputStream(new SequenceInputStream(clip1, duplicate),
+						clip1.getFormat(), clip1.getFrameLength() + duplicate.getFrameLength());
+				
+				reinitializeAIS(sequence[0]);
+			}
+			else {
+				// Initializes the appendedFiles AIS, which will be appended to continuously.
+				appendedFiles = new AudioInputStream(new SequenceInputStream(clip1, clip2),
+						clip1.getFormat(), clip1.getFrameLength() + clip2.getFrameLength());
+				
+				// Reinitializes the first two sequences.
+				reinitializeAIS(sequence[0]);
+				reinitializeAIS(sequence[1]);
+			}
 			// Appends additional sequenced clips, if necessary. 
 			for (int n = 2; n < sequence.length; n++) {
 				AudioInputStream newClip = getClip(sequence[n]);
 				
 				appendedFiles = new AudioInputStream(new SequenceInputStream(appendedFiles, newClip),
 						appendedFiles.getFormat(), appendedFiles.getFrameLength() + newClip.getFrameLength());
-				System.out.println(n);
+				
+				// Reinitializes a given sequence segment so that it may be played back once again.
+				// Because AudioInputStream objects are referentially sequenced, they must be
+				// continuously reinitialized. 
+				reinitializeAIS(sequence[n]);
 			}
 			// If recordStitch is true, a file is generated for that sequence.
 			if (recordStitch) {
